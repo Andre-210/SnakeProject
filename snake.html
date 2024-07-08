@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+    <!-- ---------- GENERAL ---------- -->
+    <head>
+        <title>Snake Game</title>
+        <link href="https://fonts.googleapis.com/css?family=Antic+Slab" rel="stylesheet">
+    </head>
+
+    <!-- ---------- BODY ---------- -->
+    <body>
+    <!-- Title -->
+    <h1>Snake Game</h1>
+    <!-- Score -->
+    <div id="score-container">
+        <h2>Score:</h2>
+        <div id="score">0</div>
+    </div>
+    <!-- Canvas for the snake game -->
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <!-- Game Over screen -->
+    <div id="game-over" style="display: none;">
+        <h1>Game Over</h1>
+        <button onclick="retryGame()">Retry</button>
+    </div>
+    </body>
+    <!-- Style -->
+    <style>
+        /*styling for the window background, and aligning components*/
+        body {
+            background-color: grey;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            position: relative;
+        }
+        /*styling canvas to host game*/
+        #gameCanvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        /*styling the score container*/
+        #score-container {
+            display: flex;
+            align-items: center;
+            font-size: 80px;
+            font-family: 'Antic Slab', serif;
+        }
+        /*aligning the score*/
+        #score {
+            margin-left: 10px;
+        }
+        /*styling the title*/
+        h1 {
+            font-size: 100px;
+            font-family: 'Antic Slab', serif;
+            margin: 80px;
+        }
+        /*styling the score text*/
+        h2 {
+            font-size: 80px;
+            margin: 0;
+        }
+        /*styling the game over screen that will appear over the game canvas*/
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: red;
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        /*styling the text on the game over screen*/
+        #game-over h1 {
+            font-size: 50px;
+            margin: 0 0 20px 0;
+        }
+        /*styling the game over button*/
+        #game-over button {
+            font-size: 30px;
+            padding: 10px 20px;
+        }
+        /*styling the button when the cursor hovers over it*/
+        #game-over button:hover {
+            color: red;
+        }
+    </style>
+
+    <!-- ---------- SCRIPT LOGIC ---------- -->
+    <script>
+        // snake speed parameter and styling parameters for game canvas, snake, and food
+        const GAME_SPEED = 100;
+        const CANVAS_BORDER_COLOUR = 'white';
+        const CANVAS_BACKGROUND_COLOUR = "black";
+        const SNAKE_COLOUR = 'lightblue';
+        const SNAKE_BORDER_COLOUR = 'darkblue';
+        const FOOD_COLOUR = 'lightgreen';
+        const FOOD_BORDER_COLOUR = 'darkgreen';
+
+        // initial snake position of length 5 (squares)
+        let snake = [
+            {x: 300, y: 300},
+            {x: 280, y: 300},
+            {x: 260, y: 300},
+            {x: 240, y: 300},
+            {x: 220, y: 300}
+        ];
+
+        // the user's score
+        let score = 0;
+        // when set to true the snake is changing direction
+        let changingDirection = false;
+        // food x-coordinate
+        let foodX;
+        // food y-coordinate
+        let foodY;
+        // horizontal velocity
+        let dx = 20;
+        // vertical velocity
+        let dy = 0;
+
+        // get the canvas element
+        const gameCanvas = document.getElementById("gameCanvas");
+        // return a 2D drawing context
+        const ctx = gameCanvas.getContext("2d");
+
+        // start game with main function
+        main();
+        // create the first food location
+        createFood();
+        // call changeDirection whenever a key is pressed
+        document.addEventListener("keydown", changeDirection);
+
+        /**
+         * main function of the game
+         * called repeatedly to advance the game
+         */
+        function main() {
+            // if the game ended return early to stop game
+            if (didGameEnd()) {
+                showGameOver();
+                return;
+            }
+
+            // update snake and food location
+            setTimeout(function onTick() {
+                changingDirection = false;
+                clearCanvas();
+                drawFood();
+                advanceSnake();
+                drawSnake();
+
+                // call game again
+                main();
+            }, GAME_SPEED);
+        }
+
+        /**
+         * change the background colour of the canvas to CANVAS_BACKGROUND_COLOUR and
+         * draw a border around it
+         */
+        function clearCanvas() {
+            //  select the colour to fill the drawing
+            ctx.fillStyle = CANVAS_BACKGROUND_COLOUR;
+            //  select the colour for the border of the canvas
+            ctx.strokestyle = CANVAS_BORDER_COLOUR;
+
+            // draw a "filled" rectangle to cover the entire canvas
+            ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            // draw a "border" around the entire canvas
+            ctx.strokeRect(0, 0, gameCanvas.width, gameCanvas.height);
+        }
+
+        /**
+         * draw the food on the canvas with its styling
+         */
+        function drawFood() {
+            ctx.fillStyle = FOOD_COLOUR;
+            ctx.strokestyle = FOOD_BORDER_COLOUR;
+            ctx.fillRect(foodX, foodY, 20, 20);
+            ctx.strokeRect(foodX, foodY, 20, 20);
+        }
+
+        /**
+         * advances the snake by changing the x-coordinates of its parts
+         * according to the horizontal velocity and the y-coordinates of its parts
+         * according to the vertical velocity
+         */
+        function advanceSnake() {
+            // create the new Snake's head with the users input (dx, dy)
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            // add the new head to the beginning of snake body
+            snake.unshift(head);
+
+            // return T or F according to the snake eating the food
+            const didEatFood = snake[0].x === foodX && snake[0].y === foodY;
+            // if the snake did eat the food
+            if (didEatFood) {
+                // increase score
+                score += 10;
+                // display score on screen
+                document.getElementById('score').innerHTML = score;
+
+                // generate new food location
+                createFood();
+            }
+            // if the snake did not eat the food
+            else {
+                // remove the last part of snake body
+                snake.pop();
+            }
+        }
+
+        /**
+         * returns true if the head of the snake touched another part of the game
+         * or any of the walls
+         */
+        function didGameEnd() {
+            // check if the snake hit itself
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+            }
+            // return the boolean if the snake touched a wall
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x > gameCanvas.width - 20;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y > gameCanvas.height - 20;
+            // return the result
+            return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+        }
+
+        /**
+         * generates a random number that is a multiple of 20 given a minimum
+         * and a maximum number
+         * @param { number } min - the minimum number the random number can be
+         * @param { number } max - the maximum number the random number can be
+         */
+        function randomTwenty(min, max) {
+            return Math.round((Math.random() * (max - min) + min) / 20) * 20;
+        }
+
+        /**
+         * creates random set of coordinates for the snake food.
+         */
+        function createFood() {
+            // generate a random number the food x-coordinate
+            foodX = randomTwenty(0, gameCanvas.width - 20);
+            // generate a random number for the food y-coordinate
+            foodY = randomTwenty(0, gameCanvas.height - 20);
+
+            // if the new food location is where the snake currently is, generate a new food location
+            snake.forEach(function isFoodOnSnake(part) {
+                const foodIsOnSnake = part.x === foodX && part.y === foodY;
+                if (foodIsOnSnake) createFood();
+            });
+        }
+
+        /**
+         * draw the snake on the canvas
+         */
+        function drawSnake() {
+            // loop through the snake parts drawing each part on the canvas
+            snake.forEach(drawSnakePart);
+        }
+
+        /**
+         * draws a part of the snake on the canvas
+         * @param { object } snakePart - the coordinates where the part should be drawn
+         */
+        function drawSnakePart(snakePart) {
+            // set the colour of the snake part
+            ctx.fillStyle = SNAKE_COLOUR;
+
+            // set the border colour of the snake part
+            ctx.strokestyle = SNAKE_BORDER_COLOUR;
+
+            // draw a "filled" rectangle to represent the snake part at the coordinates
+            // the part is located
+            ctx.fillRect(snakePart.x, snakePart.y, 20, 20);
+
+            // draw a border around the snake part
+            ctx.strokeRect(snakePart.x, snakePart.y, 20, 20);
+        }
+
+        /**
+         * changes the vertical and horizontal velocity of the snake according to the
+         * key that was pressed.
+         * the direction cannot be switched to the opposite direction, to prevent the snake
+         * from reversing
+         * for example if the direction is 'right' it cannot become 'left'
+         * @param { object } event - the keydown event
+         */
+        function changeDirection(event) {
+            const LEFT_KEY = 37;
+            const RIGHT_KEY = 39;
+            const UP_KEY = 38;
+            const DOWN_KEY = 40;
+            /**
+             * prevent the snake from reversing
+             * example scenario:
+             * snake is moving to the right. User presses down and immediately left
+             * and the snake immediately changes direction without taking a step down first
+             */
+            if (changingDirection) return;
+            changingDirection = true;
+
+            const keyPressed = event.keyCode;
+
+            const goingUp = dy === -20;
+            const goingDown = dy === 20;
+            const goingRight = dx === 20;
+            const goingLeft = dx === -20;
+
+            if (keyPressed === LEFT_KEY && !goingRight) {
+                dx = -20;
+                dy = 0;
+            }
+            if (keyPressed === UP_KEY && !goingDown) {
+                dx = 0;
+                dy = -20;
+            }
+            if (keyPressed === RIGHT_KEY && !goingLeft) {
+                dx = 20;
+                dy = 0;
+            }
+            if (keyPressed === DOWN_KEY && !goingUp) {
+                dx = 0;
+                dy = 20;
+            }
+        }
+
+        /**
+         * shows the game over screen
+         */
+        function showGameOver() {
+            document.getElementById('game-over').style.display = 'block';
+        }
+
+        /**
+         * hides the game over screen and resets the game state
+         */
+        function retryGame() {
+            document.getElementById('game-over').style.display = 'none';
+            snake = [
+                {x: 300, y: 300},
+                {x: 280, y: 300},
+                {x: 260, y: 300},
+                {x: 240, y: 300},
+                {x: 220, y: 300}
+            ];
+            dx = 20;
+            dy = 0;
+            score = 0;
+            document.getElementById('score').innerHTML = score;
+            main();
+        }
+    </script>
+</html>
